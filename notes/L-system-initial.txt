@@ -1,0 +1,20 @@
+START: R(0, initialRuleAttr) ?I(initRoadAttr, UNASSIGNED) 
+p1: R(del, ruleAttr) : del<0 -> END
+p2: R(del, ruleAttr) > ?I(roadAttr,state) : state==SUCCEED 
+   {globalGoals(ruleAttr,roadAttr) creates the parameters 
+    for: pDel[0-2], pRuleAttr[0-2], pRoadAttr[0-2]} 
+    -> +(roadAttr.angle)F(roadAttr.length) 
+     B(pDel[1],pRuleAttr[1],pRoadAttr[1]), 
+     B(pDel[2],pRuleAttr[2],pRoadAttr[2]), 
+     R(pDel[0],pRuleAttr[0]) ?I(pRoadAttr[0],UNASSIGNED) 
+p3: R(del, ruleAttr) > ?I(roadAttr, state) : state==FAILED -> END
+p4: B(del, ruleAttr, roadAttr) : del>0 -> B(del-1, ruleAttr, roadAttr) 
+p5: B(del, ruleAttr, roadAttr) : del==0 
+   -> [R(del, ruleAttr)?I(roadAttr, UNASSIGNED)] 
+p6: B(del,ruleAttr,roadAttr) : del<0 ->  END
+p7: R(del,ruleAttr) < ?I(roadAttr,state) : del<0 ->  END
+p8: ?I(roadAttr,state) : state==UNASSIGNED 
+   {localConstraints(roadAttr) adjusts the parameters for: 
+   state, roadAttr} 
+   -> ?I(roadAttr, state) 
+p9: ?I(roadAttr,state) : state!=UNASSIGNED -> END

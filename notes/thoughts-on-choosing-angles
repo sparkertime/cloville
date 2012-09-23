@@ -1,0 +1,20 @@
+Thoughts.
+
+For each segment, treat a (360 - MIN ANGLE) circle of possibilities as a weighted distribution:
+  Water / impassable terrain gets a zero distribution
+  Towards shortest segment to a highway gets a very, very high distribution
+  Parallel to highway gets a high distribution
+  Same as previous segment gets a medium distribution (could not apply to new segments)
+  Towards population center gets a medium distribution
+  "minor uphill/downhill gradient" gets a small distribution
+  "major uphill/downhill gradient" gets a small distribution
+
+  THESE STACK!
+
+Treat as attractors / repellors?
+
+Rejection Sampling - plot as above, then use water / topography to clamp the function down. THIS IS PROBABLY SLOW - TREAT IN 5 DEGREE INCREMENTS? Assuming a 30-degree minimum angle, that's 66
+
+Instead, have a few rules that generate possible angles as above. Include the "random" rule in certain cases, add a little randomization to the other rules if needed.
+
+Don't forget the difference between global goals and local. Some of these decisions should be made independently!
