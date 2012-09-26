@@ -94,15 +94,11 @@
 
 (def road-length 10.0)
 
-(def dummy-road {:point [321 420] :angle 91})
-
 (defn endpoint-for
   ([{:keys [point angle]}] (endpoint-for point angle road-length))
   ([[x y] angle length]
    [(round (+ x (* length (sin (radians angle)))))
     (round (+ y (* length (cos (radians angle)))))]))
-
-(def roads (atom []))
 
 (defn local-constraints [road]
   "Checks the local constraints for a road and returns a new road that satisfies the local constraints, or null if none can be found. These local constraints include...
@@ -114,55 +110,95 @@
   "Implementation of Global Contraints. Adds branches with delays in accordance to our global rules (attract to populations, follow global-rules (NY, Paris, SF, 'Basic'). Not entirely sure what this does yet" [])
 
 (defn offsets-to-check
-  "Returns all angle/length pairs to check when building a new segment"
-  []
-  (for [angle (map #(+ (* 45 %) (round (random -5 5))) (range 8))
-        length (map #(* (inc %) road-length) (range 9))]
-    {:angle angle :length length}))
+  "[] - Returns all angle/length pairs to check when building a new segment
+   [original-angle contraining-span] - Given an angle, returns all checkable angles within (+- constraining-span) degrees"
+  ([] (offsets-to-check 0 360)) ;note that this currently adds both 0 and 360. However, that's filtered out in subsequent fns
+  ([original-angle constraining-span]
+    (let [increment 10 ;note that this must be true: (= 0 (mod constraining-span increment) (/ constraining-span 2))
+          increment-numbers (range (inc (/ constraining-span increment)))
+          base-angles (map #(- original-angle (- (* increment %) (/ constraining-span 2))) increment-numbers)
+          angle-noise 2
+          max-lengths 9]
+      (for [angle (map #(+ % (round (random (- angle-noise) angle-noise))) base-angles)
+            length (map #(* (inc %) road-length) (range max-lengths))]
+        {:angle angle :length length}))))
 
 (defn most-populous-offset
-  "Given a point, returns the angle/length pair towards the most populous destination"
-  [p]
+  "Given a point and offsets, returns the angle/length pair towards the most populous destination"
+  [p offsets]
   (reduce (fn [offset1 offset2]
             (if (< (population-at (endpoint-for p (:angle offset1) (:length offset1)))
                    (population-at (endpoint-for p (:angle offset2) (:length offset2))))
               offset2
-              offset1)) (offsets-to-check)))
+              offset1)) offsets))
+
+(defn first-road []
+  (let [point [(round (random 0 size-x)) (round (random 0 size-y))]]
+    {:point point :angle (:angle (most-populous-offset point (offsets-to-check))) :processed? false}))
+
+(defn new-road
+  "Given a point and an original angle, will define a road starting at that position that is constrained by the original angle"
+  [point original-angle]
+  (let [span-in-degrees 60
+        offsets (offsets-to-check original-angle span-in-degrees)]
+    {:point point :angle (:angle (most-populous-offset point offsets)) :processed? false}))
+
+(defn next-roads
+  "Given a single road, will return a seq of road(s) that take its place in the sequence"
+  [road]
+  (if (:processed? road)
+    [road]
+    (let [endpoint (endpoint-for road)]
+      [(assoc road :processed? true) (new-road endpoint (:angle road))])))
+       ;left-branch (new-branch road :left)
+       ;right-branch (new-branch road :right)])))
 
 (defn next-generation
   "Given a set of roads, returns the next generation of roads available"
   [roads]
   (if (empty? roads)
-    (let [point (take 2 (repeatedly #(round (random 0 size-x))))]
-      [{:point point :angle (:angle (most-populous-offset point))}])
-    roads))
+    [(first-road)]
+    (do (println "Replacing " roads " with " (flatten (map next-roads roads)))
+    (flatten (map next-roads roads)))))
+
+(defn reset-roads
+  "Resets roads to their initial state"
+  ([] [])
+  ([_] []))
 
 (defn mouse-pressed
   "Upon a mouse press, outputs the population at that coordinate. Used for inspection"
   []
   (let [point [(mouse-x) (mouse-y)]]
     (println (str "Population at (" point "): " (population-at point)))
-    (println (str "Most populous angle:" (:angle (most-populous-offset point))))))
+    (println (str "Most populous angle:" (:angle (most-populous-offset point (offsets-to-check)))))))
+
+(def all-roads (atom (reset-roads)))
 
 (defn draw-roads
   "Draws all roads for the current generation"
-  [all-roads]
+  [roads]
   (stroke 255 0 0 255)
-  (stroke-weight 2)
+  (stroke-weight 1)
   (dorun
-    (for [road all-roads]
+    (for [road roads]
       (let [p1 (:point road)
             p2 (endpoint-for road)]
         (apply line (flatten [p1 p2]))))))
 
 (defn key-pressed
-  "When the up arrow is pressed, advance the sim and redraw"
+  "When the up arrow is pressed, advance the sim and redraw. When the down arrow is pressed, reset the sim"
   []
-  (if (= (key-as-keyword) :up)
-    (do
-      (swap! roads next-generation)
-      (draw-background)
-      (draw-roads @roads))))
+  (let [keypress (key-as-keyword)]
+    (if (some #{keypress} [:up :down])
+      (do
+        (println "Drawing...")
+        (if (= keypress :up)
+          (swap! all-roads next-generation)
+          (swap! all-roads reset-roads))
+        (draw-background)
+        (draw-roads @all-roads)
+        (println "Done!")))))
 
 (defn launch
   "Starts the simulation"
