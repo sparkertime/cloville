@@ -123,25 +123,37 @@
             length (map #(* (inc %) road-length) (range max-lengths))]
         {:angle angle :length length}))))
 
-(defn most-populous-offset
-  "Given a point and offsets, returns the angle/length pair towards the most populous destination"
+(defn choose-angle
+  "Given a point and possible offsets, returns the angle for the road"
   [p offsets]
-  (reduce (fn [offset1 offset2]
-            (if (< (population-at (endpoint-for p (:angle offset1) (:length offset1)))
-                   (population-at (endpoint-for p (:angle offset2) (:length offset2))))
-              offset2
-              offset1)) offsets))
+  (:angle (reduce (fn [offset1 offset2]
+                    (if (< (population-at (endpoint-for p (:angle offset1) (:length offset1)))
+                           (population-at (endpoint-for p (:angle offset2) (:length offset2))))
+                      offset2
+                      offset1)) offsets)))
 
-(defn first-road []
+(defn new-road [point offsets & kvs]
+  (let [opts (into {} kvs)]
+    (merge {:processed? false :delay 0}
+           opts
+           {:point point :angle (choose-angle point offsets)})))
+
+(defn first-road
+  "Creates an entirely new road with no predecessors"
+  []
   (let [point [(round (random 0 size-x)) (round (random 0 size-y))]]
-    {:point point :angle (:angle (most-populous-offset point (offsets-to-check))) :processed? false}))
+    (new-road point (offsets-to-check))))
 
-(defn new-road
+(defn new-continuation
   "Given a point and an original angle, will define a road starting at that position that is constrained by the original angle"
   [point original-angle]
   (let [span-in-degrees 60
         offsets (offsets-to-check original-angle span-in-degrees)]
-    {:point point :angle (:angle (most-populous-offset point offsets)) :processed? false}))
+    (new-road point offsets)))
+
+(defn new-branch
+  [road rotation]
+  (new-continuation (endpoint-for road) (+ rotation (:angle road))))
 
 (defn next-roads
   "Given a single road, will return a seq of road(s) that take its place in the sequence"
@@ -149,29 +161,30 @@
   (if (:processed? road)
     [road]
     (let [endpoint (endpoint-for road)]
-      [(assoc road :processed? true) (new-road endpoint (:angle road))])))
-       ;left-branch (new-branch road :left)
-       ;right-branch (new-branch road :right)])))
+      [(assoc road :processed? true)
+       (new-continuation endpoint (:angle road))
+       (new-branch road -90)
+       (new-branch road 90)])))
 
 (defn next-generation
   "Given a set of roads, returns the next generation of roads available"
   [roads]
   (if (empty? roads)
-    [(first-road)]
+    [(first-road) (first-road) (first-road)]
     (do (println "Replacing " roads " with " (flatten (map next-roads roads)))
     (flatten (map next-roads roads)))))
 
 (defn reset-roads
-  "Resets roads to their initial state"
+  "Resets a collection of roads to their initial state"
   ([] [])
-  ([_] []))
+  ([_] [])) ;for use with swap!
 
 (defn mouse-pressed
   "Upon a mouse press, outputs the population at that coordinate. Used for inspection"
   []
   (let [point [(mouse-x) (mouse-y)]]
     (println (str "Population at (" point "): " (population-at point)))
-    (println (str "Most populous angle:" (:angle (most-populous-offset point (offsets-to-check)))))))
+    (println (str "Most populous angle:" (choose-angle point (offsets-to-check))))))
 
 (def all-roads (atom (reset-roads)))
 
