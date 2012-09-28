@@ -119,7 +119,7 @@
           base-angles (map #(- original-angle (- (* increment %) (/ constraining-span 2))) increment-numbers)
           angle-noise 2
           max-lengths 9]
-      (for [angle (map #(+ % (round (random (- angle-noise) angle-noise))) base-angles)
+      (for [angle (map #(+ % (rand-int (* angle-noise 2)) (- angle-noise)) base-angles)
             length (map #(* (inc %) road-length) (range max-lengths))]
         {:angle angle :length length}))))
 
@@ -133,46 +133,45 @@
                       offset1)) offsets)))
 
 (defn new-road [point offsets & kvs]
-  (let [opts (into {} kvs)]
-    (merge {:processed? false :delay 0}
+  (let [opts (apply hash-map kvs)]
+    (merge {:continuable? true :branchable? true :branch-delay 0}
            opts
            {:point point :angle (choose-angle point offsets)})))
 
 (defn first-road
   "Creates an entirely new road with no predecessors"
   []
-  (let [point [(round (random 0 size-x)) (round (random 0 size-y))]]
-    (new-road point (offsets-to-check))))
+  (let [point [(round (rand-int size-x)) (round (rand-int size-y))]]
+    (new-road point (offsets-to-check) :branch-delay 5)))
 
 (defn new-continuation
   "Given a point and an original angle, will define a road starting at that position that is constrained by the original angle"
-  [point original-angle]
+  [point original-angle & kvs]
   (let [span-in-degrees 60
-        offsets (offsets-to-check original-angle span-in-degrees)]
-    (new-road point offsets)))
+        offsets (offsets-to-check original-angle span-in-degrees)
+        opts (merge {:branch-delay 5} (apply hash-map kvs))]
+    (apply new-road point offsets :branch-delay 5 kvs)))
 
 (defn new-branch
   [road rotation]
-  (new-continuation (endpoint-for road) (+ rotation (:angle road))))
+  (new-continuation (endpoint-for road) (+ rotation (:angle road)) :branchable? false))
 
 (defn next-roads
   "Given a single road, will return a seq of road(s) that take its place in the sequence"
   [road]
-  (if (:processed? road)
-    [road]
-    (let [endpoint (endpoint-for road)]
-      [(assoc road :processed? true)
-       (new-continuation endpoint (:angle road))
-       (new-branch road -90)
-       (new-branch road 90)])))
+  (let [endpoint (endpoint-for road)]
+    (cond
+      (:continuable? road) [(assoc road :continuable? false) (new-continuation endpoint (:angle road))]
+      (and (:branchable? road) (= 0 (:branch-delay road))) [(assoc road :branchable? false) (new-branch road -90) (new-branch road 90)]
+      (:branchable? road) [(update-in road [:branch-delay] dec)]
+      :else [road])))
 
 (defn next-generation
   "Given a set of roads, returns the next generation of roads available"
   [roads]
   (if (empty? roads)
     [(first-road) (first-road) (first-road)]
-    (do (println "Replacing " roads " with " (flatten (map next-roads roads)))
-    (flatten (map next-roads roads)))))
+    (flatten (map next-roads roads))))
 
 (defn reset-roads
   "Resets a collection of roads to their initial state"
