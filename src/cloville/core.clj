@@ -134,7 +134,7 @@
 
 (defn new-road [point offsets & kvs]
   (let [opts (apply hash-map kvs)]
-    (merge {:continuable? true :branchable? true :branch-delay 0}
+    (merge {:continuable? true :branchable? true :branch-delay 5}
            opts
            {:point point :angle (choose-angle point offsets)})))
 
@@ -142,28 +142,26 @@
   "Creates an entirely new road with no predecessors"
   []
   (let [point [(round (rand-int size-x)) (round (rand-int size-y))]]
-    (new-road point (offsets-to-check) :branch-delay 5)))
+    (new-road point (offsets-to-check))))
 
 (defn new-continuation
   "Given a point and an original angle, will define a road starting at that position that is constrained by the original angle"
   [point original-angle & kvs]
   (let [span-in-degrees 60
-        offsets (offsets-to-check original-angle span-in-degrees)
-        opts (merge {:branch-delay 5} (apply hash-map kvs))]
-    (apply new-road point offsets :branch-delay 5 kvs)))
+        offsets (offsets-to-check original-angle span-in-degrees)]
+    (apply new-road point offsets kvs)))
 
 (defn new-branch
   [road rotation]
-  (new-continuation (endpoint-for road) (+ rotation (:angle road)) :branchable? false))
+  (new-continuation (endpoint-for road) (+ rotation (:angle road))))
 
 (defn next-roads
-  "Given a single road, will return a seq of road(s) that take its place in the sequence"
+  "Given a single road, returns a seq of roads that take its place"
   [road]
   (let [endpoint (endpoint-for road)]
     (cond
-      (:continuable? road) [(assoc road :continuable? false) (new-continuation endpoint (:angle road))]
-      (and (:branchable? road) (= 0 (:branch-delay road))) [(assoc road :branchable? false) (new-branch road -90) (new-branch road 90)]
-      (:branchable? road) [(update-in road [:branch-delay] dec)]
+      (:continuable? road) [(assoc road :continuable? false) (new-continuation endpoint (:angle road) :branch-delay (dec (:branch-delay road)))]
+      (= 0 (:branch-delay road)) [(update-in road [:branch-delay] dec) (new-branch road -90) (new-branch road 90)]
       :else [road])))
 
 (defn next-generation
@@ -202,12 +200,13 @@
   "When the up arrow is pressed, advance the sim and redraw. When the down arrow is pressed, reset the sim"
   []
   (let [keypress (key-as-keyword)]
-    (if (some #{keypress} [:up :down])
+    (if (some #{keypress} [:up :down :right])
       (do
         (println "Drawing...")
-        (if (= keypress :up)
-          (swap! all-roads next-generation)
-          (swap! all-roads reset-roads))
+        (case keypress
+          :up (swap! all-roads next-generation)
+          :right (dotimes [n 10] (swap! all-roads next-generation))
+          :down (swap! all-roads reset-roads))
         (draw-background)
         (draw-roads @all-roads)
         (println "Done!")))))
