@@ -1,0 +1,56 @@
+In English:
+-------
+Highways make roads, roads make streets. Highways will trace long, slowly curving lines across your map. They create roads, the major thoroughfares through a city that often define neighborhood boundaries. These roads create streets, minor roadways that veer off to one side or the other.
+
+In general highways should spawn roads infrequently while roads generate streets more frequently. Streets will never spawn streets - they will continue until they terminate.
+
+This process will create a fairly chaotic map - something that resembles cities like Paris and Boston. If you desire something with more order (ala New York or Chicago), you'll want to modify it such that roads and streets are very likely (but not guaranteed) to take the same angle as their neighbors. This will often create orderly sets of roads that extend in a gridlike system.
+
+When checking angles to see what direction a segment continues in, you're checking angles in a broad, starlike-expansion from the endpoint. Imagine it as checking the points marked X below:
+  X   X   X
+
+    X X X
+
+X  X  O  X  X
+
+    X X X
+
+  X   X   X
+
+Original Notes
+----
+Here's the current system for drawing roads that I was working from. It makes clear a variety of assumptions that the original City Generation paper left as implementation details of the "Global Goals" and "Local Goals" functions:
+1. Randomly generate Perlin Noise across an X/Y axis to represent population density.
+2. Start H number of highways as follows:
+  a. Select a random x/y point on the map
+  b. Sample the population density at D degree intervals. For each interval, sample distance at lengths of A, 2A, 3A, ... up to a reasonable amount. (For a more interesting generation, you can add a little noise to the degree D.). At each point determined thus, sample the population density as the grayscale value of the pixel at that point (0-255).
+  c. The highway now extends for length A from the random x/y point towards the most populous point.
+3. Create each new generation of roads as follows:
+  a. For each highway segment, create the following:
+     1. A new highway segment starting from its endpoint and angled as described in 2.a above with the following additional constraint: only sample points that are +/- D degrees from the angle of this current highway segment
+     2. 1 new road segment, starting from the highway's endpoint and angled as described in 2.a. above with the following additional constraint: only sample points that are +/- 2D degrees from (highway's angle - 90 degrees)
+     3. 1 new road segment, starting from the highway's endpoint and angled as described in 2.a. above with the following additional constraint: only sample points that are +/- 2D degrees from (highway's angle + 90 degrees)
+  b. For each road segment, do the following every third generation:
+     1. Extend the road by R starting from its endpoint and angled as described in 2.a above with the following additional constraint: only sample points that are +/- D degrees from the angle of this current highway segment
+     2. Every C road segments, generate a new street segment, starting from the road's endpoint and angled as described in 2.a. above with the following additional constraint: only sample points that are +/- 2D degrees from (road's angle - 90 degrees)
+     3. Every C road segments, generate a new street segment, starting from the road's endpoint and angled as described in 2.a. above with the following additional constraint: only sample points that are +/- 2D degrees from (road's angle + 90 degrees)
+  c. For each street segment, do the following:
+     1. Extend the street segment by S from its endpoint and angled as described in 2.a above with the following additional constraint: only sample points that are +/- D/2 degrees from the angle of this current highway segment
+  d. Delete roads and streets that are within X degrees of parallel with another segment and are Y pixels or less apart.
+  e. Truncate the portions of roads and streets that have been newly created this generation and intersect another highway, road, or street such that they only meet, not extend past, this roadway. They will not be eligible for future generations (?? not sure about this)
+4. When a suitable number of generations has been created, stop. Extend any highways that end before leaving the map off the map. 
+
+Notes on Constants
+---
+H - Number of initial Highways to spawn. ~2-3
+D - The distance between degrees = any low number that evenly divides 360. I used 9
+A = Length of a Highway. Depends on your coordinate system but should be fairly long relative to your coordinate system. I think I used 100 for a 1200x1200 pixel image
+R = Length of a Road. Again it depends, but should be substantially less than a highway. I used 40
+S = Length of a Street. Substantially less than a road. I used 10.
+X = The difference in angle between two segments must be to be considered parallel. 15 degrees or so
+Y = The distance between two road segments to be considerd "too close unless they're intersecting." should be aroud S/2
+
+Open Problems
+---
+This mostly leaves unaddressed the odd behavior that can occur when segments terminate near each other. I don't have a great approach for most of them, but the original paper clearly describes these cases on p5 in Fig. 8
+This completely disregards Part 4 and beyond of the Procedural Modeling paper. 

@@ -1,3 +1,10 @@
+### Most recent thoughts
+
+Generate branches perpendicular to originating road segments. Allow to adjust angle up to N (45?) degrees to satisfy parallelism and population needs.
+
+Storing roads as x/y/angle should allow us to use a fairly stupid adjacency algorithm with success
+
+
 Thoughts.
 
 For each segment, treat a (360 - MIN ANGLE) circle of possibilities as a weighted distribution:
